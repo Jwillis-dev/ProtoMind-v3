@@ -1,52 +1,46 @@
-# protomind/main.py
 
-from protomind.core.runtime import ProtoMindRuntime
-from protomind.task.tool import Tool
-from protomind.task.executive import Executive
-from protomind.environment.environment import DummyEnv  # Or GridEnvironment
+# main.py
 
-def build_tools():
-    """
-    Define starting toolset for ProtoMind.
-    """
-    return [
-        Tool("move", {"speed": 1.0, "can_turn": True}),
-        Tool("move_var", {"speed": 1.0, "can_turn": True}),
-        # Add more tools here
-    ]
+from __future__ import annotations
 
-def build_task(environment, tools):
-    """
-    Build an Executive task using the environment and toolset.
-    """
-    return Executive(environment, tools)
+from task.tool import Tool
+from task.executive import Executive
+from environment.environment import Environment
+
+
+class DummyEnv(Environment):
+    def __init__(self):
+        self.pos = 0
+        self.name = "dummy_env"
+
+    def reset(self):
+        self.pos = 0
+        return {"pos": self.pos}
+
+    def step(self, action):
+        aff = (action or {}).get("affordances", {}) or {}
+        speed = float(aff.get("speed", 0.0))
+        self.pos += speed
+        if self.pos > 5:
+            self.pos = 5
+        return {"pos": self.pos}
+
 
 def main():
-    # --- Build environment ---
-    env = DummyEnv()  # Replace with GridEnvironment(width, height) if needed
+    env = DummyEnv()
+    tools = [Tool("move", {"speed": 1.0})]
+    ex = Executive(env, tools)
 
-    # --- Build tools ---
-    tools = build_tools()
+    for step in range(50):
+        ended = ex.step()
+        print(f"[Step {step}] tools={ex.tools} abandoned={ex.abandoned}")
+        if ended:
+            print("Task episode ended (abandoned).")
+            break
 
-    # --- Build executive task ---
-    exec_task = build_task(env, tools)
 
-    # --- Build runtime ---
-    # For now, dummy placeholders for dream_engine and evolutionary_loop
-    class DummyDreamEngine:
-        def dream_cycle(self):
-            print("[DreamEngine] idle dream cycle")
-
-    dummy_dream = DummyDreamEngine()
-    runtime = ProtoMindRuntime(dream_engine=dummy_dream, evolutionary_loop=None)
-
-    # --- Schedule executive task ---
-    runtime.schedule_task(exec_task)
-
-    # --- Run runtime loop ---
-    for tick_num in range(15):  # Run a fixed number of ticks for demo
-        print(f"\n[Runtime] Tick {tick_num}")
-        runtime.tick()
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()

@@ -1,79 +1,43 @@
-# protomind/test_tool_evolution.py
+# test_tool_evolution.py
 
+from __future__ import annotations
 
-from protomind.task.tool import Tool
-from protomind.task.tool_evolver import ToolEvolver
-from protomind.task.capability_gap import CapabilityGapDetector
-from protomind.task.affordance_probe import AffordanceProbe
+from task.tool import Tool
+from task.executive import Executive
+from environment.environment import Environment
 
-# --- Dummy Environment ---
-class DummyEnv:
-    """
-    Simple environment that responds to tool actions.
-    """
+class DummyEnv(Environment):
     def __init__(self):
         self.pos = 0
+        self.name = "dummy_env"
 
     def reset(self):
         self.pos = 0
         return {"pos": self.pos}
 
     def step(self, action):
-        """
-        Apply tool's affordances.
-        Accepts either a Tool object or an action dict.
-        """
-        if hasattr(action, 'affordances'):
-            speed = action.affordances.get("speed", 0)
-        elif isinstance(action, dict):
-            speed = action.get("affordances", {}).get("speed", 0)
-        else:
-            speed = 0
+        aff = (action or {}).get("affordances", {}) or {}
+        speed = float(aff.get("speed", 0.0))
         self.pos += speed
         if self.pos > 5:
             self.pos = 5
         return {"pos": self.pos}
 
 
-if __name__ == "__main__":
-    # Initialize environment, tool, detector, and evolver
+def test_run():
     env = DummyEnv()
-    gap_detector = CapabilityGapDetector(stall_threshold=3)
-    evolver = ToolEvolver()
+    tools = [Tool("move", {"speed": 1.0})]
+    ex = Executive(env, tools)
 
+    # Run until abandon or step cap
+    for _ in range(50):
+        ended = ex.step()
+        if ended:
+            break
 
-    # Original tool
-    base_tool = Tool("move", {"speed": 1.0})
+    # Should either abandon or keep running; this is a smoke test.
+    assert ex.tools, "Tools list should not be empty."
 
-    # Define probe actions
-    probe = AffordanceProbe(test_actions=[
-        {"tool": base_tool.name, "affordances": base_tool.affordances},
-        {"tool": "noop", "affordances": {}}
-    ])
-
-    # Reset environment
-    obs = env.reset()
-    print("Environment reset:", obs)
-
-    # Run simulation loop
-    for step_num in range(15):
-        print(f"\nStep {step_num+1}")
-
-        # Step environment with current tool
-        obs = env.step(base_tool)
-        print("Tool used:", base_tool)
-        print("Observation:", obs)
-
-        # Check for capability gap
-        if gap_detector.update(obs):
-            print("Capability gap detected!")
-
-            if not probe.is_change_possible(env, obs):
-                print("Environment is locally immutable. Escalating task.")
-                break  # or hand control to planner / meta-system
-
-            print("Change possible. Generating new tool variants...")
-            candidates = evolver.generate(base_tool)
-            base_tool = candidates[0]
-            print("Tool updated to:", base_tool)
-            gap_detector.reset()
+if __name__ == "__main__":
+    test_run()
+    print("OK")
